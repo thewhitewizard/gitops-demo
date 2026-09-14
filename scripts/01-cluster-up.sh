@@ -43,9 +43,11 @@ chmod 600 "$KUBECONFIG"
 
 kc get nodes -o wide
 
-# Traefik est embarqué dans k3s et se déploie tout seul au premier démarrage.
+# Traefik est embarqué dans k3s, mais il est installé par un job Helm qui tourne
+# après le démarrage du cluster : le Deployment n'existe pas encore à cet instant.
 echo "== Attente de Traefik (fourni par k3s) =="
-kc -n kube-system rollout status deployment/traefik --timeout=120s
+kc -n kube-system wait --for=create deployment/traefik --timeout=180s
+kubectl -n kube-system rollout status deployment/traefik --timeout=180s
 
 echo
 echo ">> Cluster prêt. Vérification que le contexte par défaut n'a pas bougé :"
