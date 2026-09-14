@@ -79,12 +79,15 @@ Il faut aussi **les ports 80 et 443 libres** sur la machine, et un compte GitHub
 
 ## Mise en route
 
-### 1. Créer le dépôt GitHub — **public**
+### 1. Créer le dépôt GitHub — **public**, sans pousser tout de suite
 
 ```bash
 git init && git add -A && git commit -m "init"
-gh repo create <owner>/gitops-demo --public --source=. --remote=origin --push
+gh repo create <owner>/gitops-demo --public --source=. --remote=origin
 ```
+
+Pas de `--push` ici : le premier push déclenche la CI, et elle échouerait tant que
+l'étape 2 n'est pas faite.
 
 Le dépôt doit être **public** : ArgoCD y accède alors sans aucune credential git.
 C'est la simplification qui rend ce lab court.
@@ -97,22 +100,30 @@ grep -rl thewhitewizard . --exclude-dir=.git | xargs sed -i 's/thewhitewizard/<o
 
 ### 2. Autoriser la CI à écrire
 
+Un dépôt neuf est créé avec des workflows en **lecture seule** : le job `bump`
+échouerait en `403` au moment de pousser son commit. C'est de loin la cause n°1
+d'échec au premier essai.
+
 Dans **Settings → Actions → General → Workflow permissions**, cocher
-**« Read and write permissions »**.
-
-Sans cette case, le job `bump` échoue avec un `403` au moment de pousser le commit.
-C'est de loin la cause n°1 d'échec au premier essai. Voir
-[Tokens et permissions GitHub](#tokens-et-permissions-github).
-
-### 3. Laisser tourner la CI une première fois
-
-Le push initial déclenche le workflow `release`. Il publie l'image et **commit
-lui-même** le vrai tag dans `deploy/overlays/dev/kustomization.yaml`.
+**« Read and write permissions »** — ou en ligne de commande :
 
 ```bash
+gh api -X PUT repos/<owner>/gitops-demo/actions/permissions/workflow \
+  -f default_workflow_permissions=write
+```
+
+Voir [Tokens et permissions GitHub](#tokens-et-permissions-github) pour le détail.
+
+### 3. Pousser et laisser tourner la CI une première fois
+
+```bash
+git push -u origin main
 gh run watch          # suivre le workflow
 git pull              # récupérer le commit de bump écrit par le bot
 ```
+
+Le workflow `release` publie l'image et **commit lui-même** le vrai tag dans
+`deploy/overlays/dev/kustomization.yaml`.
 
 Vérifier que `deploy/overlays/dev/kustomization.yaml` ne contient plus `newTag: dev`
 mais `newTag: sha-xxxxxxx`.
@@ -177,6 +188,10 @@ pointe sur `deploy/overlays/dev`, en sync automatique. Tout le reste passe par g
 curl -s http://app.k3d.lab
 # {"app":"gitops-demo","node":"k3d-gitops-demo-agent-0","pod":"demo-6f8b...","uptime":"12s","version":"sha-abc1234"}
 ```
+
+> **Le premier déploiement ne fait pas de canary** : il n'existe aucune version
+> stable à comparer, donc les 5 pods démarrent directement en nouvelle version.
+> Le canary n'apparaît qu'à partir du deuxième déploiement — c'est celui de la démo.
 
 ---
 
@@ -274,6 +289,7 @@ Dockerfile                           multi-stage → distroless nonroot
 deploy/base/                         Rollout + Service + Ingress
 deploy/overlays/dev/                 namespace + tag d'image ← écrit par la CI
 argocd/application.yaml              l'Application ArgoCD
+argocd/ingress.yaml                  l'Ingress d'ArgoCD (pas celui du chart, cf. dépannage)
 scripts/                             création du cluster, installs, bootstrap, teardown
 ```
 
@@ -410,6 +426,24 @@ seulement un uid. Un `USER nonroot` dans le Dockerfile ne suffit donc pas.
 Le dépôt utilise partout l'uid numérique de distroless : `USER 65532:65532` dans le
 Dockerfile et `runAsUser: 65532` dans le manifest. Les deux doivent rester cohérents.
 
+### 502 Bad Gateway sur http://argocd.k3d.lab
+
+Traefik bascule **automatiquement en HTTPS vers le backend** dès que le port du
+service vaut 443. Or ArgoCD tourne ici en `--insecure` et ne parle qu'HTTP : d'où
+le 502. Et le chart Helm câble justement son Ingress sur le port 443, sans valeur
+pour le changer.
+
+C'est pourquoi l'Ingress d'ArgoCD n'est pas celui du chart mais
+`argocd/ingress.yaml`, qui vise explicitement le port nommé `http`. Vérifier :
+
+```bash
+kubectl -n argocd get ingress argocd -o jsonpath='{.spec.rules[0].http.paths[0].backend}'
+# doit afficher  "port":{"name":"http"}  — surtout pas 443
+```
+
+L'annotation `traefik.ingress.kubernetes.io/service.serversscheme: http` **ne suffit
+pas** à contourner le problème : c'est bien le port qu'il faut changer.
+
 ### 404 page not found sur http://app.k3d.lab
 
 Traefik ne connaît pas cet hôte. Dans l'ordre :
@@ -451,6 +485,23 @@ Normal s'il est à l'étape `pause: {}` : il attend
 ```bash
 kubectl argo rollouts get rollout demo -n demo
 kubectl -n argo-rollouts logs deploy/argo-rollouts | tail
+```
+
+**Cas particulier : la révision stable n'a jamais été saine.** Si le tout premier
+déploiement était cassé, le Rollout enchaîne des canaries depuis une base qui n'est
+jamais devenue disponible : il reste `Progressing`, les anciens pods en erreur ne
+sont jamais supprimés, et `promote` ne suffit pas. Sauter toutes les étapes :
+
+```bash
+kubectl argo rollouts promote demo -n demo --full
+```
+
+Et si l'état reste incohérent, le plus simple est de repartir de zéro — ArgoCD
+recrée la ressource depuis git en quelques secondes, ce qui est aussi une bonne
+démonstration du self-heal :
+
+```bash
+kubectl -n demo delete rollout demo
 ```
 
 ### Le port 80 est déjà pris

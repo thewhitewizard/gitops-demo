@@ -13,9 +13,6 @@ helm upgrade --install argocd argo-cd \
   --set dex.enabled=false \
   --set notifications.enabled=false \
   --set 'server.extraArgs={--insecure}' \
-  --set server.ingress.enabled=true \
-  --set "server.ingress.hostname=$ARGOCD_HOST" \
-  --set server.ingress.ingressClassName=traefik \
   --set 'configs.cm.timeout\.reconciliation=30s' \
   --wait --timeout 10m
 
@@ -23,6 +20,10 @@ helm upgrade --install argocd argo-cd \
 #   HTTPS, que Traefik renvoie vers lui en HTTP : boucle de redirection.
 # timeout.reconciliation : ArgoCD scrute git toutes les 3 minutes par défaut,
 #   ce qui est intenable devant un public. 30s rend la démo fluide.
+# L'Ingress n'est volontairement pas celui du chart : voir argocd/ingress.yaml.
+
+echo "== Exposition sur http://$ARGOCD_HOST =="
+kubectl apply -f "$REPO/argocd/ingress.yaml"
 
 echo
 echo "== ArgoCD prêt =="

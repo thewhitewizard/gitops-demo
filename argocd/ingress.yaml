@@ -1,0 +1,24 @@
+# Ingress d'ArgoCD, déclaré à la main plutôt que par le chart Helm.
+#
+# Le chart câble son Ingress sur le port 443 du service, sans possibilité de le
+# configurer. Or Traefik bascule automatiquement en HTTPS vers le backend dès que
+# le port vaut 443 — et se heurte alors au serveur lancé en --insecure, qui ne
+# parle qu'HTTP : 502 Bad Gateway. On vise donc explicitement le port http.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: argocd.k3d.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  name: http
