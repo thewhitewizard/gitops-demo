@@ -1,0 +1,72 @@
+# Un Rollout est un Deployment auquel on a ajouté une stratégie de déploiement
+# progressif. Même spec.template, même gestion des ReplicaSets — c'est le
+# contrôleur argo-rollouts qui remplace celui de Kubernetes.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: demo
+spec:
+  replicas: 5
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: demo
+  strategy:
+    canary:
+      # Pas de traffic router : la répartition se fait au nombre de pods, le
+      # Service envoyant du trafic à l'ancienne comme à la nouvelle version.
+      # C'est approximatif, mais ça ne demande aucune configuration réseau et
+      # ça se voit parfaitement dans une boucle curl.
+      steps:
+        - setWeight: 20 # 1 pod sur 5 passe en nouvelle version
+        - pause: {} # attente illimitée : il faut promouvoir à la main
+        - setWeight: 60
+        - pause: { duration: 20s }
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      # 5s de drain + jusqu'à 15s pour finir les requêtes en vol : 30s laisse
+      # de la marge avant que Kubernetes n'envoie le SIGKILL.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: ghcr.io/thewhitewizard/gitops-demo:dev # tag écrit par la CI via l'overlay
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # Downward API : le pod connaît son propre nom, qu'il renvoie dans
+            # ses réponses. C'est ce qui rend le canary lisible à l'œil nu.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          # Liveness : « le process est-il vivant ». Elle reste verte pendant le
+          # drain, sinon Kubernetes tuerait le pod en plein arrêt propre.
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          # Readiness : « puis-je recevoir du trafic ». periodSeconds court pour
+          # que la sortie des endpoints suive de près le SIGTERM.
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 2
+            failureThreshold: 2
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

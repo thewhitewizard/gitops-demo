@@ -1,0 +1,20 @@
+# Traefik est embarqué dans k3s : il suffit de déclarer un Ingress, aucune
+# installation n'est nécessaire. Le port 80 de l'hôte est mappé sur le
+# loadbalancer k3d à la création du cluster (voir scripts/01-cluster-up.sh).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: app.k3d.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: demo
+                port:
+                  name: http

@@ -1,0 +1,6 @@
+# Kubeconfig dédié au cluster de lab — jamais versionné, jamais ~/.kube/config
+kubeconfig-*.yaml
+
+# Binaires
+/app
+/gitops-demo
