@@ -30,7 +30,7 @@ echo "== Création du cluster k3d '$CLUSTER' =="
 # --kubeconfig-* à false : k3d n'écrit rien dans ~/.kube/config.
 # @loadbalancer : le trafic entre par le proxy k3d, qui le route vers Traefik.
 env -u KUBECONFIG k3d cluster create "$CLUSTER" \
-  --servers 1 --agents 1 \
+  --servers 1 --agents 3 \
   --port "80:80@loadbalancer" \
   --port "443:443@loadbalancer" \
   --kubeconfig-update-default=false \
