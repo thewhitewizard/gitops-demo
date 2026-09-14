@@ -22,7 +22,11 @@ RUN CGO_ENABLED=0 go build \
 # d'attaque se limite au binaire, et l'image reste sous les 10 Mo.
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/app /app
-USER nonroot:nonroot
+
+# UID numérique, pas le nom « nonroot » : avec runAsNonRoot: true, la kubelet doit
+# pouvoir vérifier que l'utilisateur n'est pas root *avant* de démarrer le conteneur,
+# et elle ne sait pas résoudre un nom. 65532 est l'uid de nonroot chez distroless.
+USER 65532:65532
 EXPOSE 8080
 
 # Forme exec, impérativement : en forme shell le binaire tournerait sous /bin/sh,

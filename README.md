@@ -117,16 +117,26 @@ git pull              # récupérer le commit de bump écrit par le bot
 Vérifier que `deploy/overlays/dev/kustomization.yaml` ne contient plus `newTag: dev`
 mais `newTag: sha-xxxxxxx`.
 
-### 4. Rendre l'image publique sur GHCR
+### 4. Vérifier que l'image est publique sur GHCR
 
-Au premier push, le package GHCR est **privé par défaut** : le cluster ne pourra pas
-le télécharger et les pods resteront en `ImagePullBackOff`.
+Le cluster tire l'image **sans credential** : il faut donc que le package GHCR soit
+public, sinon les pods restent en `ImagePullBackOff`.
 
+Publié par Actions depuis un dépôt public, le package est rattaché au dépôt et en
+hérite normalement la visibilité — mais ça dépend des réglages du compte ou de
+l'organisation, donc on vérifie plutôt que de supposer :
+
+```bash
+TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:<owner>/gitops-demo:pull&service=ghcr.io" | jq -r .token)
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
+  https://ghcr.io/v2/<owner>/gitops-demo/manifests/latest
+```
+
+`200` → c'est bon. `401` ou `403` → le package est privé :
 **GitHub → votre profil → Packages → `gitops-demo` → Package settings →
 Danger Zone → Change visibility → Public.**
 
-(Solution de repli si le package doit rester privé :
-[voir le dépannage](#imagepullbackoff).)
+(S'il doit rester privé : [voir le dépannage](#imagepullbackoff).)
 
 ### 5. Créer le cluster
 
@@ -385,6 +395,20 @@ kubectl -n demo create secret docker-registry ghcr \
 
 et ajouter `imagePullSecrets: [{name: ghcr}]` dans `deploy/base/rollout.yaml`
 (sous `spec.template.spec`).
+
+### CreateContainerConfigError : `image has non-numeric user`
+
+```
+container has runAsNonRoot and image has non-numeric user (nonroot),
+cannot verify user is non-root
+```
+
+Avec `runAsNonRoot: true`, la kubelet doit vérifier que l'utilisateur n'est pas root
+**avant** de démarrer le conteneur — et elle ne sait pas résoudre un nom d'utilisateur,
+seulement un uid. Un `USER nonroot` dans le Dockerfile ne suffit donc pas.
+
+Le dépôt utilise partout l'uid numérique de distroless : `USER 65532:65532` dans le
+Dockerfile et `runAsUser: 65532` dans le manifest. Les deux doivent rester cohérents.
 
 ### 404 page not found sur http://app.k3d.lab
 

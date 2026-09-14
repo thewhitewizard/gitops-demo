@@ -32,6 +32,10 @@ spec:
       terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true
+        # Doit être numérique et cohérent avec le USER du Dockerfile : la kubelet
+        # refuse de démarrer un conteneur dont elle ne peut pas vérifier l'uid.
+        runAsUser: 65532
+        runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
