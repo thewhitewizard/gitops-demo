@@ -10,8 +10,11 @@ on:
     # (Deuxième garde-fou, par construction : un push authentifié avec GITHUB_TOKEN
     # ne déclenche aucun workflow. Les deux mécanismes se couvrent mutuellement,
     # et le second saute dès qu'on passe à un PAT.)
+    # deploy/ est écrit par le job bump ; le reste ne peut pas changer l'image.
     paths-ignore:
       - "deploy/**"
+      - "argocd/**"
+      - "scripts/**"
       - "**.md"
 
 # Deux merges rapprochés écriraient sur main en même temps : on sérialise.
