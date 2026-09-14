@@ -12,4 +12,4 @@ resources:
 # et commit le résultat. ArgoCD voit le diff et déploie. Personne ne fait kubectl apply.
 images:
 - name: ghcr.io/thewhitewizard/gitops-demo
-  newTag: sha-a868552
+  newTag: sha-f3d0a4b
