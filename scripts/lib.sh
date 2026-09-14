@@ -11,10 +11,12 @@ REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
 CLUSTER="gitops-demo"
 APP_HOST="app.k3d.lab"
 ARGOCD_HOST="argocd.k3d.lab"
+DASHBOARD_HOST="dashboard.k3d.lab"
 
 # Versions épinglées : un lab qui se remonte à l'identique dans six mois.
 ARGOCD_CHART_VERSION="9.4.3"
 ROLLOUTS_CHART_VERSION="2.40.6"
+HEADLAMP_CHART_VERSION="0.45.0"
 
 export KUBECONFIG="$REPO/kubeconfig-$CLUSTER.yaml" # JAMAIS ~/.kube/config
 export PATH="$HOME/.local/bin:$PATH"               # helm et le plugin rollouts en user-space

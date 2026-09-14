@@ -1,0 +1,59 @@
+# Identité utilisée pour se connecter à Headlamp.
+#
+# Strictement en lecture seule : le dashboard sert à *montrer* le cluster, pas à
+# le modifier. On s'appuie sur le ClusterRole `view` intégré à Kubernetes, qui a
+# deux qualités ici : il couvre déjà les CRD Rollout (Argo Rollouts s'y agrège),
+# et il **exclut les secrets** — une simple règle `resources: ["*"]` les aurait
+# rendus lisibles, dont le mot de passe admin d'ArgoCD.
+#
+# `view` ignore en revanche les ressources non-namespacées, sans lesquelles la vue
+# d'ensemble du cluster serait vide : d'où le second rôle ci-dessous.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp-viewer
+  namespace: headlamp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-viewer-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: headlamp-viewer
+    namespace: headlamp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: headlamp-cluster-read
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "persistentvolumes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingressclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-viewer-cluster-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: headlamp-cluster-read
+subjects:
+  - kind: ServiceAccount
+    name: headlamp-viewer
+    namespace: headlamp

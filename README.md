@@ -161,19 +161,37 @@ sur son loadbalancer**. Traefik est déjà embarqué dans k3s : rien à installe
 ### 6. Déclarer les noms de domaine
 
 ```bash
-echo "127.0.0.1 app.k3d.lab argocd.k3d.lab" | sudo tee -a /etc/hosts
+echo "127.0.0.1 app.k3d.lab argocd.k3d.lab dashboard.k3d.lab" | sudo tee -a /etc/hosts
 ```
 
 Ces entrées survivent au démontage du cluster : à ne faire qu'une fois.
 
-### 7. Installer ArgoCD et Argo Rollouts
+### 7. Installer ArgoCD, Argo Rollouts et le dashboard
 
 ```bash
-./scripts/02-install-argocd.sh    # affiche le mot de passe admin à la fin
+./scripts/02-install-argocd.sh      # affiche le mot de passe admin à la fin
 ./scripts/03-install-rollouts.sh
+./scripts/05-install-dashboard.sh   # affiche un token de connexion à la fin
 ```
 
-ArgoCD est alors sur **http://argocd.k3d.lab** (login `admin`).
+| Interface | URL | Connexion |
+|---|---|---|
+| ArgoCD | http://argocd.k3d.lab | `admin` + mot de passe affiché par le script |
+| Headlamp | http://dashboard.k3d.lab | token affiché par le script (valable 24 h) |
+| L'application | http://app.k3d.lab | — |
+
+**Headlamp** est une IHM web pour explorer le cluster : nœuds, namespaces, pods,
+logs, et les Rollouts avec leur progression. Le ServiceAccount utilisé est
+**strictement en lecture seule** (`dashboard/rbac.yaml`) : on s'appuie sur le
+ClusterRole `view` intégré, qui couvre déjà les CRD d'Argo Rollouts et exclut les
+secrets. Rien ne peut être modifié depuis l'interface — c'est un outil de
+démonstration, pas une console d'administration.
+
+Pour régénérer un token :
+
+```bash
+kubectl -n headlamp create token headlamp-viewer --duration=24h
+```
 
 ### 8. Brancher l'application
 
@@ -290,6 +308,8 @@ deploy/base/                         Rollout + Service + Ingress
 deploy/overlays/dev/                 namespace + tag d'image ← écrit par la CI
 argocd/application.yaml              l'Application ArgoCD
 argocd/ingress.yaml                  l'Ingress d'ArgoCD (pas celui du chart, cf. dépannage)
+dashboard/rbac.yaml                  identité lecture seule pour Headlamp
+dashboard/ingress.yaml               l'Ingress de Headlamp
 scripts/                             création du cluster, installs, bootstrap, teardown
 ```
 
