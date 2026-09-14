@@ -4,12 +4,12 @@ kind: Kustomization
 namespace: demo
 
 resources:
-  - ../../base
+- ../../base
 
 # Ce bloc est le seul point de contact entre la CI et le cluster.
 # À chaque merge sur main, .github/workflows/release.yml exécute
 #   kustomize edit set image ghcr.io/thewhitewizard/gitops-demo:sha-<commit>
 # et commit le résultat. ArgoCD voit le diff et déploie. Personne ne fait kubectl apply.
 images:
-  - name: ghcr.io/thewhitewizard/gitops-demo
-    newTag: dev
+- name: ghcr.io/thewhitewizard/gitops-demo
+  newTag: sha-31d135c
