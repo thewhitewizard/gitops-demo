@@ -299,7 +299,8 @@ Trois routes, et une seule raison d'exister : rendre visible ce que fait Kuberne
 
 | Route | Rôle |
 |---|---|
-| `GET /` | renvoie `version` (le SHA du commit, injecté au build) et `pod`. C'est ce qui rend le canary lisible dans une boucle `curl`. |
+| `GET /` | renvoie `message`, `version` (le SHA du commit, injecté au build) et `pod`. C'est ce qui rend le canary lisible dans une boucle `curl`. |
+| `GET /message` | la constante `message` en texte brut. C'est **la ligne à modifier pour la démo**, en haut de `main.go`. |
 | `GET /healthz` | **liveness** — « le processus est-il vivant ». Reste verte pendant l'arrêt. |
 | `GET /readyz` | **readiness** — « puis-je recevoir du trafic ». Passe en 503 dès le `SIGTERM`. |
 
@@ -348,7 +349,7 @@ lieu. Le tag `sha-abc1234` est immuable et remonte au commit exact.
 **Terminal 1** — la preuve que rien ne casse :
 
 ```bash
-while true; do curl -s http://app.k3d.lab | jq -r '"\(.version)  \(.pod)"'; sleep 0.3; done
+while true; do curl -s http://app.k3d.lab | jq -r '"\(.message)  |  \(.version)  \(.pod)"'; sleep 0.3; done
 ```
 
 **Terminal 2** — l'état du déploiement :
@@ -361,8 +362,9 @@ Puis, à l'écran :
 
 1. **Montrer l'état initial.** Le terminal 1 affiche une seule version, répartie sur
    5 pods différents. Premier point : le Service équilibre la charge tout seul.
-2. **Modifier le code.** Changer le champ `"app"` dans `handleRoot` (`main.go`).
-   Ouvrir une PR → la CI teste et construit sans rien publier → merger.
+2. **Modifier le code.** Changer la constante `message` en haut de `main.go` — c'est
+   la seule ligne à toucher. Ouvrir une PR → la CI teste et construit sans rien
+   publier → merger.
 3. **Suivre GitHub Actions.** Le workflow `release` publie
    `ghcr.io/<owner>/gitops-demo:sha-xxxxxxx`, puis **commit lui-même** le nouveau tag.
    Montrer ce commit dans l'historique : *« voilà le déploiement, c'est une ligne de git »*.

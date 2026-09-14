@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +14,7 @@ func newRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.GET("/", handleRoot)
+	r.GET("/message", handleMessage)
 	r.GET("/healthz", handleHealthz)
 	r.GET("/readyz", handleReadyz)
 	return r
@@ -40,6 +42,16 @@ func TestRootExposesVersion(t *testing.T) {
 	}
 	if body["app"] != "gitops-demo" {
 		t.Errorf("app = %q, want %q", body["app"], "gitops-demo")
+	}
+}
+
+func TestMessageServesTheConstant(t *testing.T) {
+	w := get(t, "/message")
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200", w.Code)
+	}
+	if got := strings.TrimSpace(w.Body.String()); got != message {
+		t.Errorf("body = %q, want %q", got, message)
 	}
 }
 

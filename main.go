@@ -20,6 +20,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// message est la chaîne servie par GET /message.
+//
+// C'est le point de modification prévu pour la démo : changer cette ligne,
+// ouvrir une PR, merger — et regarder la chaîne traverser la CI, l'image, le
+// manifest et le canary jusqu'aux pods, sans jamais lancer de kubectl.
+const message = "Bonjour depuis Kubernetes"
+
 // version est injectée au build : -ldflags "-X main.version=sha-abc1234".
 var version = "dev"
 
@@ -44,6 +51,7 @@ func main() {
 	r.Use(gin.Recovery())
 
 	r.GET("/", handleRoot)
+	r.GET("/message", handleMessage)
 	r.GET("/healthz", handleHealthz)
 	r.GET("/readyz", handleReadyz)
 
@@ -96,9 +104,16 @@ func shutdown(srv *http.Server) {
 	slog.Info("shutdown: terminé proprement")
 }
 
+// handleMessage renvoie du texte brut plutôt que du JSON : dans une boucle
+// `watch curl`, le changement se lit d'un coup d'œil depuis le fond de la salle.
+func handleMessage(c *gin.Context) {
+	c.String(http.StatusOK, "%s\n", message)
+}
+
 func handleRoot(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"app":     "gitops-demo",
+		"message": message,
 		"version": version,
 		"pod":     env("POD_NAME", "-"),
 		"node":    env("NODE_NAME", "-"),
