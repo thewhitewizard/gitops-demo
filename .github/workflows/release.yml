@@ -81,6 +81,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # ref: main, et pas le SHA déclencheur. Par défaut checkout récupère le
+          # commit qui a lancé le workflow ; si main a avancé entre-temps, le bump
+          # serait calculé sur une base périmée.
+          ref: main
           # GITHUB_TOKEN suffit dans le cas nominal. Le PAT ne devient nécessaire
           # que si main est protégée par une branch protection — voir le README,
           # section « Tokens et permissions GitHub ».
@@ -91,21 +95,34 @@ jobs:
           curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
           sudo mv kustomize /usr/local/bin/
 
-      - name: Pointer l'overlay sur la nouvelle image
-        working-directory: deploy/overlays/dev
-        run: kustomize edit set image ${{ env.IMAGE }}:${{ needs.build-push.outputs.tag }}
-
-      - name: Commiter le bump
+      - name: Pointer l'overlay sur la nouvelle image et commiter
+        env:
+          TAG: ${{ needs.build-push.outputs.tag }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet; then
-            echo "Aucun changement : l'overlay pointe déjà sur cette image."
-            exit 0
-          fi
+          # main peut bouger pendant le build. Plutôt que de rebaser un commit
+          # déjà écrit — ce qui produit un conflit, les deux bumps touchant la
+          # même ligne — on repart de la tête et on recalcule le changement.
+          for attempt in 1 2 3; do
+            git fetch --quiet origin main
+            git reset --quiet --hard origin/main
 
-          git commit -am "chore(deploy): image ${{ needs.build-push.outputs.tag }}"
-          # Un autre merge a pu passer pendant le build : on se rebase avant de pousser.
-          git pull --rebase origin main
-          git push origin HEAD:main
+            (cd deploy/overlays/dev && kustomize edit set image "$IMAGE:$TAG")
+
+            if git diff --quiet; then
+              echo "L'overlay pointe déjà sur $TAG, rien à faire."
+              exit 0
+            fi
+
+            git commit --quiet -am "chore(deploy): image $TAG"
+            if git push --quiet origin HEAD:main; then
+              echo "Bump poussé (tentative $attempt)."
+              exit 0
+            fi
+            echo "main a bougé pendant le push, nouvelle tentative."
+          done
+
+          echo "Impossible de pousser le bump après 3 tentatives." >&2
+          exit 1
