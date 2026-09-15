@@ -1,10 +1,3 @@
-// Commande demo : un service HTTP minimal dont le seul rôle est de rendre visible,
-// dans un terminal, ce que Kubernetes fait pendant un déploiement.
-//
-// Il expose sa version (injectée au build depuis le SHA du commit) et le nom du pod
-// qui répond : pendant un canary, une boucle curl montre donc les deux versions
-// cohabiter. Et il s'arrête proprement, ce qui est la condition pour que cette même
-// boucle n'affiche aucune erreur.
 package main
 
 import (
@@ -25,7 +18,7 @@ import (
 // C'est le point de modification prévu pour la démo : changer cette ligne,
 // ouvrir une PR, merger — et regarder la chaîne traverser la CI, l'image, le
 // manifest et le canary jusqu'aux pods, sans jamais lancer de kubectl.
-const message = "Bonjour depuis Kubernetes"
+const message = "Bonjour depuis iMaison"
 
 // version est injectée au build : -ldflags "-X main.version=sha-abc1234".
 var version = "dev"
